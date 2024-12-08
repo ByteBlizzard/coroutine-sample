@@ -40,7 +40,7 @@ class NonBlockingClient(
     fun getRandom(top: Int = 1000): CompletableFuture<Int> {
         val result = CompletableFuture<Int>()
 
-        val req = SimpleRequestBuilder.get("http://localhost:8081/random?top=$top").build()
+        val req = SimpleRequestBuilder.get("http://192.168.71.111:8081/random?top=$top").build()
         client.execute(
             SimpleRequestProducer.create(req),
             SimpleResponseConsumer.create(),
@@ -66,7 +66,7 @@ class NonBlockingClient(
         val result = CompletableFuture<Int>()
 
         val body = numbers.joinToString(",")
-        val req = SimpleRequestBuilder.post("http://localhost:8081/add")
+        val req = SimpleRequestBuilder.post("http://192.168.71.111:8081/add")
             .setBody(body, ContentType.TEXT_PLAIN)
             .build()
         client.execute(

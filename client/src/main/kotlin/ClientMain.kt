@@ -13,7 +13,7 @@ import java.util.concurrent.Executors
 import java.util.concurrent.Semaphore
 import kotlin.system.measureTimeMillis
 
-const val TIMES = 800
+const val TIMES = 100000
 
 fun main() {
     /*
@@ -22,21 +22,23 @@ fun main() {
     println("------------------------\n")
      */
 
-    /*
     println("blocking thread pool:")
-    blockingThreadPool(100)
+    blockingThreadPool(10000)
     println("------------------------\n")
-     */
 
+    /*
     println("nonblocking one thread: ")
     nonblockingOneThread()
     println("------------------------\n")
+     */
 
     /*
     println("coroutine blocking:")
     coroutineBlocking()
     println("------------------------\n")
+     */
 
+    /*
     println("coroutine none blocking:")
     coroutineNonBlocking()
     println("------------------------\n")
@@ -85,24 +87,23 @@ fun blockingThreadPool(poolSize: Int = 10) {
 fun nonblockingOneThread() {
     makeHttpAsyncClient().use { httpClient ->
         val client = NonBlockingClient(httpClient)
-        val semaphore = Semaphore(100)
+        val semaphore = Semaphore(10000)
 
         printTimeCost {
             (0..TIMES).map { index ->
-                try {
-                    semaphore.acquire()
+                semaphore.acquire()
 
-                    val a = client.getRandom()
-                    val b = client.getRandom()
+                val a = client.getRandom()
+                val b = client.getRandom()
 
-                    CompletableFuture.allOf(a, b).thenApply {
-                        println("index: $index")
-                        client.add(listOf(a.get(), b.get()))
+                CompletableFuture.allOf(a, b).thenApply {
+                    client.add(listOf(a.get(), b.get())).thenApply {
+                        semaphore.release()
                     }
-                } finally {
-                    semaphore.release()
                 }
-            }.forEach { it.get().join() }
+            }.forEach {
+                it.get().join()
+            }
         }
     }
 }
@@ -128,12 +129,15 @@ fun coroutineNonBlocking() {
         val client = CoroutineNonBlockingClient(NonBlockingClient(httpClient))
 
         printTimeCost {
+            val semaphore = Semaphore(188)
             runBlocking(Dispatchers.Default) {
                 (0..TIMES).map {
                     async {
                         val a = async { client.getRandom() }
                         val b = async { client.getRandom() }
-                        async { client.add(listOf(a.await().await(), b.await().await())).await() }
+                        async {
+                            client.add(listOf(a.await().await(), b.await().await())).await()
+                        }
                     }
                 }.forEach { it.join() }
             }
@@ -177,8 +181,8 @@ fun makeHttpClient(): CloseableHttpClient {
 
 fun makeHttpAsyncClient(): CloseableHttpAsyncClient {
     val connManger = PoolingAsyncClientConnectionManagerBuilder.create()
-        .setMaxConnTotal(500)
-        .setMaxConnPerRoute(500)
+        .setMaxConnTotal(5000)
+        .setMaxConnPerRoute(5000)
         .build()
     val client = HttpAsyncClients.custom().setConnectionManager(connManger).build()
     client.start()
