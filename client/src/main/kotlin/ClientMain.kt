@@ -1,6 +1,7 @@
 package org.example
 
 import kotlinx.coroutines.*
+import kotlinx.coroutines.future.asDeferred
 import kotlinx.coroutines.future.await
 import org.apache.hc.client5.http.impl.async.CloseableHttpAsyncClient
 import org.apache.hc.client5.http.impl.async.HttpAsyncClients
@@ -13,50 +14,56 @@ import java.util.concurrent.Executors
 import java.util.concurrent.Semaphore
 import kotlin.system.measureTimeMillis
 
-const val TIMES = 100000
-
 fun main() {
-    /*
-    println("blocking one thread:  ")
-    blockingOneThread()
-    println("------------------------\n")
-     */
+    val clientType = System.getProperty("t.ct") ?: throw IllegalArgumentException("test.clientType is required")
+    val times = System.getProperty("t.times")?.toIntOrNull() ?: 100
+    val concurrency = System.getProperty("t.cc")?.toIntOrNull() ?: 100
 
-    println("blocking thread pool:")
-    blockingThreadPool(10000)
-    println("------------------------\n")
+    println("clientType: $clientType, times: $times, concurrency: $concurrency")
 
-    /*
-    println("nonblocking one thread: ")
-    nonblockingOneThread()
-    println("------------------------\n")
-     */
 
-    /*
-    println("coroutine blocking:")
-    coroutineBlocking()
-    println("------------------------\n")
-     */
+    when (clientType) {
+        "b1" -> {
+            println("blocking one thread:  ")
+            blockingOneThread(times)
+            println("------------------------\n")
+        }
+        "bp" -> {
+            println("blocking thread pool:")
+            blockingThreadPool(times, concurrency)
+            println("------------------------\n")
+        }
+        "n1" -> {
+            println("nonblocking one thread: ")
+            nonblockingOneThread(times, concurrency)
+            println("------------------------\n")
+        }
+        "cb" -> {
+            println("coroutine blocking:")
+            coroutineBlocking(times, concurrency)
+            println("------------------------\n")
+        }
+        "cn" -> {
+            println("coroutine nonblocking:")
+            coroutineNonBlocking(times, concurrency)
+            println("------------------------\n")
+        }
+        "vt" -> {
+            println("virtual thread:")
+            virtualThreadBlocking(times, concurrency)
+            println("------------------------\n")
+        }
+        else -> throw IllegalArgumentException("unknown clientType: $clientType")
+    }
 
-    /*
-    println("coroutine none blocking:")
-    coroutineNonBlocking()
-    println("------------------------\n")
-     */
-
-    /*
-    println("virtual thread:")
-    virtualThreadBlocking()
-    println("------------------------\n")
-     */
 }
 
-fun blockingOneThread() {
+fun blockingOneThread(times: Int) {
     makeHttpClient().use { httpClient ->
         val client = BlockingClient(httpClient)
 
         printTimeCost {
-            repeat(TIMES) {
+            repeat(times) {
                 val a = client.getRandom()
                 val b = client.getRandom()
                 client.add(listOf(a, b))
@@ -65,13 +72,13 @@ fun blockingOneThread() {
     }
 }
 
-fun blockingThreadPool(poolSize: Int = 10) {
+fun blockingThreadPool(times: Int, poolSize: Int = 10) {
     makeHttpClient().use { httpClient ->
         val client = BlockingClient(httpClient)
         val executor = Executors.newFixedThreadPool(poolSize)
 
         printTimeCost {
-            (0..TIMES).map {
+            (0..times).map {
                 executor.submit {
                     val a = client.getRandom()
                     val b = client.getRandom()
@@ -84,13 +91,13 @@ fun blockingThreadPool(poolSize: Int = 10) {
     }
 }
 
-fun nonblockingOneThread() {
+fun nonblockingOneThread(times: Int, concurrency: Int) {
     makeHttpAsyncClient().use { httpClient ->
         val client = NonBlockingClient(httpClient)
-        val semaphore = Semaphore(10000)
+        val semaphore = Semaphore(concurrency)
 
         printTimeCost {
-            (0..TIMES).map { index ->
+            (0..times).map { index ->
                 semaphore.acquire()
 
                 val a = client.getRandom()
@@ -108,49 +115,53 @@ fun nonblockingOneThread() {
     }
 }
 
-fun coroutineBlocking() {
+fun coroutineBlocking(times: Int, concurrency: Int) {
     makeHttpClient().use { httpClient ->
         val client = BlockingClient(httpClient)
 
+        // 默认的 Dispatchers.IO 大小只有64
+        val myDispatcher = Dispatchers.IO.limitedParallelism(concurrency)
         printTimeCost {
             runBlocking {
-                (0..TIMES).map {
-                    val a = async(Dispatchers.IO) { client.getRandom() }
-                    val b = async(Dispatchers.IO) { client.getRandom() }
-                    async(Dispatchers.IO) { client.add(listOf(a.await(), b.await())) }
+                (0..times).map {
+                    val a = async(myDispatcher) { client.getRandom() }
+                    val b = async(myDispatcher) { client.getRandom() }
+                    val c = async(myDispatcher) { client.add(listOf(a.await(), b.await())) }
+                    c
                 }.joinAll()
             }
         }
     }
 }
 
-fun coroutineNonBlocking() {
+fun coroutineNonBlocking(times: Int, concurrency: Int) {
     makeHttpAsyncClient().use { httpClient ->
         val client = CoroutineNonBlockingClient(NonBlockingClient(httpClient))
 
+        val semaphore = Semaphore(concurrency)
         printTimeCost {
-            val semaphore = Semaphore(188)
-            runBlocking(Dispatchers.Default) {
-                (0..TIMES).map {
+            runBlocking {
+                (0..times).map {
                     async {
-                        val a = async { client.getRandom() }
-                        val b = async { client.getRandom() }
-                        async {
-                            client.add(listOf(a.await().await(), b.await().await())).await()
-                        }
+                        semaphore.acquire()
+                        val a = client.getRandom()
+                        val b = client.getRandom()
+                        val c = client.add(listOf(a.await(), b.await())).asDeferred()
+                        c.invokeOnCompletion { semaphore.release() }
+                        c
                     }
-                }.forEach { it.join() }
+                }.joinAll()
             }
         }
     }
 }
 
-fun virtualThreadBlocking() {
+fun virtualThreadBlocking(times: Int,concurrency: Int) {
     makeHttpClient().use { httpClient ->
         val client = BlockingClient(httpClient)
-        val semaphore = Semaphore(4000)
+        val semaphore = Semaphore(concurrency)
         printTimeCost {
-            val threads = (0..TIMES).map {
+            val threads = (0..times).map {
                 Thread.ofVirtual().name("vt-$it").start {
                     try {
                         semaphore.acquire()

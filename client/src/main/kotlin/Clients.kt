@@ -13,11 +13,13 @@ import org.apache.hc.core5.http.io.support.ClassicRequestBuilder
 import java.lang.Exception
 import java.util.concurrent.CompletableFuture
 
+val server = System.getProperty("t.server") ?: throw IllegalArgumentException("test.sever is required")
+
 class BlockingClient(
     private val client: CloseableHttpClient
 ) {
     fun getRandom(top: Int = 1000): Int {
-        val req = ClassicRequestBuilder.get("http://localhost:8081/random?top=$top").build()
+        val req = ClassicRequestBuilder.get("http://${server}/random?top=$top").build()
         return client.execute(req) { resp ->
             EntityUtils.toString(resp.entity).toIntOrNull() ?: 0
         }
@@ -25,7 +27,7 @@ class BlockingClient(
 
     fun add(numbers: List<Int>): Int {
         val body = numbers.joinToString(",")
-        val req = ClassicRequestBuilder.post("http://localhost:8081/add")
+        val req = ClassicRequestBuilder.post("http://${server}/add")
             .setEntity(body)
             .build()
         return client.execute(req) {
@@ -40,7 +42,7 @@ class NonBlockingClient(
     fun getRandom(top: Int = 1000): CompletableFuture<Int> {
         val result = CompletableFuture<Int>()
 
-        val req = SimpleRequestBuilder.get("http://192.168.71.111:8081/random?top=$top").build()
+        val req = SimpleRequestBuilder.get("http://${server}/random?top=$top").build()
         client.execute(
             SimpleRequestProducer.create(req),
             SimpleResponseConsumer.create(),
@@ -66,7 +68,7 @@ class NonBlockingClient(
         val result = CompletableFuture<Int>()
 
         val body = numbers.joinToString(",")
-        val req = SimpleRequestBuilder.post("http://192.168.71.111:8081/add")
+        val req = SimpleRequestBuilder.post("http://${server}/add")
             .setBody(body, ContentType.TEXT_PLAIN)
             .build()
         client.execute(
@@ -88,18 +90,6 @@ class NonBlockingClient(
         )
 
         return result
-    }
-}
-
-class CoroutineBlockingClient(
-    private val client: BlockingClient
-) {
-    fun getRandom(top: Int = 1000): Int {
-        return client.getRandom(top)
-    }
-
-    fun add(numbers: List<Int>): Int {
-        return client.add(numbers)
     }
 }
 

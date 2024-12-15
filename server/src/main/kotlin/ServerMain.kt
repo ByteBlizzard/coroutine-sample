@@ -7,8 +7,9 @@ import io.vertx.ext.web.Router
 import io.vertx.ext.web.handler.BodyHandler
 import kotlin.random.Random
 
-const val LAG = 30L
-fun main() {
+fun main(args: Array<String>) {
+    val lag = args.getOrNull(0)?.toLongOrNull() ?: 30L
+    val port = args.getOrNull(1)?.toIntOrNull() ?: 8080
     val vertx = Vertx.vertx()
 
     val router = Router.router(vertx)
@@ -19,14 +20,14 @@ fun main() {
 
         val resp = ctx.response()
         resp.putHeader("content-type", "text/plain")
-        vertx.setTimer(LAG) {
+        vertx.setTimer(lag) {
             resp.end(result.toString())
         }
     }
 
     val random = Random(System.currentTimeMillis())
     router.get("/random").handler{ ctx ->
-        vertx.setTimer(LAG) {
+        vertx.setTimer(lag) {
             ctx.response().end(random.nextInt(ctx.queryParam("top").getOrNull(0)?.toIntOrNull() ?: Integer.MAX_VALUE).toString())
         }
     }
@@ -35,6 +36,8 @@ fun main() {
         HttpServerOptions()
             .setInitialSettings(Http2Settings().setMaxConcurrentStreams(1000_0000))
     )
-    httpServer.requestHandler(router).listen(8081)
-    println("Done.")
+    httpServer.requestHandler(router).listen(port)
+        .onSuccess {
+            println("Server started on port $port, lag: $lag")
+        }
 }
