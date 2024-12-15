@@ -1,8 +1,9 @@
 package org.example
 
 import kotlinx.coroutines.*
-import kotlinx.coroutines.future.asDeferred
 import kotlinx.coroutines.future.await
+import kotlinx.coroutines.sync.withPermit
+import kotlinx.coroutines.sync.Semaphore as KSemaphore
 import org.apache.hc.client5.http.impl.async.CloseableHttpAsyncClient
 import org.apache.hc.client5.http.impl.async.HttpAsyncClients
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient
@@ -138,17 +139,16 @@ fun coroutineNonBlocking(times: Int, concurrency: Int) {
     makeHttpAsyncClient().use { httpClient ->
         val client = CoroutineNonBlockingClient(NonBlockingClient(httpClient))
 
-        val semaphore = Semaphore(concurrency)
         printTimeCost {
             runBlocking {
+                val semaphore = KSemaphore(concurrency)
                 (0..times).map {
-                    async {
-                        semaphore.acquire()
-                        val a = client.getRandom()
-                        val b = client.getRandom()
-                        val c = client.add(listOf(a.await(), b.await())).asDeferred()
-                        c.invokeOnCompletion { semaphore.release() }
-                        c
+                    semaphore.withPermit {
+                        async {
+                            val a = client.getRandom()
+                            val b = client.getRandom()
+                            client.add(listOf(a.await(), b.await()))
+                        }
                     }
                 }.joinAll()
             }
