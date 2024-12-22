@@ -6,10 +6,10 @@ To install dependencies:
 bun install
 ```
 
-To run:
+To install pm2:
 
 ```bash
-bun run index.ts
+bun i pm2 -g
 ```
 
 This project was created using `bun init` in bun v1.1.42. [Bun](https://bun.sh) is a fast all-in-one JavaScript runtime.
