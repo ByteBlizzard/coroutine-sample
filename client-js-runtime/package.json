@@ -3,7 +3,10 @@
   "module": "index.ts",
   "type": "module",
   "devDependencies": {
-    "@types/bun": "latest"
+    "@types/bun": "latest",
+    "@vue/reactivity": "^3.5.13",
+    "tx2": "^1.0.5",
+    "vue-fn": "^0.0.3-aplha.36"
   },
   "peerDependencies": {
     "typescript": "^5.0.0"

@@ -1,15 +1,37 @@
 # demo
 
-To install dependencies:
+本测试选择了最快的 js 运行时
 
-```bash
+## 1、安装 bun
+
+[Bun](https://bun.sh/)
+
+## 2、安装依赖
+
+```sh
 bun install
 ```
 
-To install pm2:
+## 3、安装全局 PM2
 
-```bash
+```sh
 bun i pm2 -g
 ```
 
-This project was created using `bun init` in bun v1.1.42. [Bun](https://bun.sh) is a fast all-in-one JavaScript runtime.
+## 4、运行 ready 脚本
+
+```sh
+./ready.sh
+```
+
+## 5、确定容器里的实例都已经启动
+
+```sh
+pm2 status
+```
+
+## 5、运行 start 脚本
+
+```sh
+./start.sh
+```

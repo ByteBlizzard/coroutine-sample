@@ -1,1 +1,1 @@
-pm2 start ./index.ts --interpreter bun -i max --no-autorestart
+echo 0 > ./maxtime.log && echo 1 > ./signal.txt && pm2 monit
