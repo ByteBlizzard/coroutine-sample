@@ -1,0 +1,1 @@
+echo 0 > ./maxtime.log && echo 1 > ./signal.txt && pm2 monit
