@@ -1,0 +1,1 @@
+pm2 start ./index.ts --interpreter bun -i 4 --name demo --no-autorestart
